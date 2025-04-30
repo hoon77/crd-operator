@@ -1,0 +1,9 @@
+apiVersion: webapp.crdlego.com/v1
+kind: WebApp
+metadata:
+  name: my-webapp
+spec:
+  image: nginx:latest
+  replicas: 2
+  configData:
+    GREETING: "Hello from Operator"
