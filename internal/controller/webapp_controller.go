@@ -92,6 +92,15 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// Get deployment status availableReplicas
+	availableReplicas := foundDeploy.Status.AvailableReplicas
+	if webapp.Status.AvailableReplicas != availableReplicas {
+		webapp.Status.AvailableReplicas = availableReplicas
+		if err := r.Status().Update(ctx, &webapp); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -99,6 +108,8 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 func (r *WebAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.WebApp{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Named("webapp").
 		Complete(r)
 }
