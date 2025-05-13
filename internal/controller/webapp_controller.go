@@ -107,7 +107,8 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else if err != nil {
 		return ctrl.Result{}, err
 	} else {
-		if reflect.DeepEqual(foundConfigmap.Data, createConfigmap.Data) {
+		if !reflect.DeepEqual(foundConfigmap.Data, createConfigmap.Data) {
+			log.Info("New Configmap Data", "Data", createConfigmap.Data)
 			foundConfigmap.Data = createConfigmap.Data
 			if err := r.Update(ctx, foundConfigmap); err != nil {
 				return ctrl.Result{}, err
