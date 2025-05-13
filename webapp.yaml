@@ -6,4 +6,4 @@ spec:
   image: nginx:latest
   replicas: 2
   configData:
-    GREETING: "Hello from Operator"
+    test: "todayistuesdayhehe"
