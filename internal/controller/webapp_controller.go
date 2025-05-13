@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -41,7 +42,7 @@ type WebAppReconciler struct {
 // +kubebuilder:rbac:groups=webapp.crdlego.com,resources=webapps/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=webapp.crdlego.com,resources=webapps/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -87,6 +88,28 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundSvc); err != nil {
 		if errors.IsNotFound(err) {
 			if err := r.Create(ctx, createSvc); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
+
+	createConfigmap := resources.BuildConfigMap(&webapp)
+	if err := utils.SetOwnerRefence(&webapp, createConfigmap, r.Scheme); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	foundConfigmap := &corev1.ConfigMap{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: createConfigmap.Namespace, Name: createConfigmap.Name}, foundConfigmap)
+	if err != nil && errors.IsNotFound(err) {
+		if err := r.Create(ctx, createConfigmap); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		return ctrl.Result{}, err
+	} else {
+		if reflect.DeepEqual(foundConfigmap.Data, createConfigmap.Data) {
+			foundConfigmap.Data = createConfigmap.Data
+			if err := r.Update(ctx, foundConfigmap); err != nil {
 				return ctrl.Result{}, err
 			}
 		}

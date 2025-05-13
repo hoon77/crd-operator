@@ -32,6 +32,15 @@ func BuildDeployment(webapp *webappv1.WebApp) *appsv1.Deployment {
 						{
 							Name:  "webapp",
 							Image: webapp.Spec.Image,
+							EnvFrom: []corev1.EnvFromSource{
+								{
+									ConfigMapRef: &corev1.ConfigMapEnvSource{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: webapp.Name + configMapSuffix,
+										},
+									},
+								},
+							},
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 80,
