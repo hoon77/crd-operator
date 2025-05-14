@@ -72,9 +72,20 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 	foundDeploy := &appsv1.Deployment{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundDeploy); err != nil {
-		if errors.IsNotFound(err) {
-			if err := r.Create(ctx, createDeploy); err != nil {
+	err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundDeploy)
+	if err != nil && errors.IsNotFound(err) {
+		if err := r.Create(ctx, createDeploy); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		return ctrl.Result{}, err
+	} else {
+		// config-hash 비교
+		oldHash := foundDeploy.Spec.Template.Annotations[resources.WebAppHashKey]
+		newHash := createDeploy.Spec.Template.Annotations[resources.WebAppHashKey]
+		if oldHash != newHash {
+			foundDeploy.Spec.Template.Annotations = createDeploy.Spec.Template.Annotations
+			if err := r.Update(ctx, foundDeploy); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -94,13 +105,14 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// Create configmap
 	createConfigmap := resources.BuildConfigMap(&webapp)
 	if err := utils.SetOwnerRefence(&webapp, createConfigmap, r.Scheme); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	foundConfigmap := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: createConfigmap.Namespace, Name: createConfigmap.Name}, foundConfigmap)
+	err = r.Get(ctx, types.NamespacedName{Namespace: createConfigmap.Namespace, Name: createConfigmap.Name}, foundConfigmap)
 	if err != nil && errors.IsNotFound(err) {
 		if err := r.Create(ctx, createConfigmap); err != nil {
 			return ctrl.Result{}, err
