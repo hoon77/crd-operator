@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	configMapSuffix = "-configmap"
+	ConfigMapSuffix = "-configmap"
 )
 
 func BuildConfigMap(webapp *webappv1.WebApp) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      webapp.Name + configMapSuffix,
+			Name:      webapp.Name + ConfigMapSuffix,
 			Namespace: webapp.Namespace,
 		},
 		Data: webapp.Spec.ConfigData,

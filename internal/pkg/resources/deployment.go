@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	WebAppHashKey = "webapp.crdlego.com/config-hash"
+	WebAppFinalizer = "webapp.finalizers.crdlego.com"
+	WebAppHashKey   = "webapp.crdlego.com/config-hash"
 )
 
 func BuildDeployment(webapp *webappv1.WebApp) *appsv1.Deployment {
@@ -46,7 +47,7 @@ func BuildDeployment(webapp *webappv1.WebApp) *appsv1.Deployment {
 								{
 									ConfigMapRef: &corev1.ConfigMapEnvSource{
 										LocalObjectReference: corev1.LocalObjectReference{
-											Name: webapp.Name + configMapSuffix,
+											Name: webapp.Name + ConfigMapSuffix,
 										},
 									},
 								},

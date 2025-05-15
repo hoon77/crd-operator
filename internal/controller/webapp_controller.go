@@ -24,11 +24,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -56,13 +59,75 @@ type WebAppReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
-	log.Info("Call Reconcile", "NamespacedName", req.NamespacedName)
+	klog.Info("Call Reconcile", "NamespacedName", req.NamespacedName)
 	// TODO(user): your logic here
 
 	var webapp webappv1.WebApp
 	if err := r.Get(ctx, req.NamespacedName, &webapp); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// detect webapp deletion
+	if !webapp.DeletionTimestamp.IsZero() {
+		klog.Infof("Webapp %s/%s is being deleted. Cleaning up...", webapp.Namespace, webapp.Name)
+
+		// delete deployment
+		_ = r.Delete(ctx, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+			Namespace: webapp.Namespace,
+			Name:      webapp.Name,
+		}})
+		// delete service
+		_ = r.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+			Namespace: webapp.Namespace,
+			Name:      webapp.Name,
+		}})
+		// delete configmap
+		_ = r.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+			Namespace: webapp.Namespace,
+			Name:      webapp.Name + resources.ConfigMapSuffix,
+		}})
+
+		// remove finalizer
+		controllerutil.RemoveFinalizer(&webapp, resources.WebAppFinalizer)
+		if err := r.Update(ctx, &webapp); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// add finalizer to webapp
+	if !controllerutil.ContainsFinalizer(&webapp, resources.WebAppFinalizer) {
+		controllerutil.AddFinalizer(&webapp, resources.WebAppFinalizer)
+		if err := r.Update(ctx, &webapp); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Create configmap
+	createConfigmap := resources.BuildConfigMap(&webapp)
+	if err := utils.SetOwnerRefence(&webapp, createConfigmap, r.Scheme); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	foundConfigmap := &corev1.ConfigMap{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: createConfigmap.Namespace, Name: createConfigmap.Name}, foundConfigmap)
+	if err != nil && errors.IsNotFound(err) {
+		if err := r.Create(ctx, createConfigmap); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		return ctrl.Result{}, err
+	} else {
+		if !reflect.DeepEqual(foundConfigmap.Data, createConfigmap.Data) {
+			log.Info("New Configmap Data", "Data", createConfigmap.Data)
+			foundConfigmap.Data = createConfigmap.Data
+			if err := r.Update(ctx, foundConfigmap); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -72,7 +137,7 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 	foundDeploy := &appsv1.Deployment{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundDeploy)
+	err = r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundDeploy)
 	if err != nil && errors.IsNotFound(err) {
 		if err := r.Create(ctx, createDeploy); err != nil {
 			return ctrl.Result{}, err
@@ -80,7 +145,7 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else if err != nil {
 		return ctrl.Result{}, err
 	} else {
-		// config-hash 비교
+		// compare config-hash
 		oldHash := foundDeploy.Spec.Template.Annotations[resources.WebAppHashKey]
 		newHash := createDeploy.Spec.Template.Annotations[resources.WebAppHashKey]
 		if oldHash != newHash {
@@ -100,30 +165,6 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, foundSvc); err != nil {
 		if errors.IsNotFound(err) {
 			if err := r.Create(ctx, createSvc); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	}
-
-	// Create configmap
-	createConfigmap := resources.BuildConfigMap(&webapp)
-	if err := utils.SetOwnerRefence(&webapp, createConfigmap, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	foundConfigmap := &corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Namespace: createConfigmap.Namespace, Name: createConfigmap.Name}, foundConfigmap)
-	if err != nil && errors.IsNotFound(err) {
-		if err := r.Create(ctx, createConfigmap); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else if err != nil {
-		return ctrl.Result{}, err
-	} else {
-		if !reflect.DeepEqual(foundConfigmap.Data, createConfigmap.Data) {
-			log.Info("New Configmap Data", "Data", createConfigmap.Data)
-			foundConfigmap.Data = createConfigmap.Data
-			if err := r.Update(ctx, foundConfigmap); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
