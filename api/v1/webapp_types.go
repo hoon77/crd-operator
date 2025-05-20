@@ -32,6 +32,7 @@ type WebAppSpec struct {
 	Image      string            `json:"image"`
 	Replicas   *int32            `json:"replicas"`
 	ConfigData map[string]string `json:"configData,omitempty"`
+	Ingress    *IngressSpec      `json:"ingress,omitempty"`
 }
 
 // WebAppStatus defines the observed state of WebApp.
@@ -58,6 +59,14 @@ type WebAppList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []WebApp `json:"items"`
+}
+
+type IngressSpec struct {
+	Enabled bool   `json:"enabled"`
+	Host    string `json:"host,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Port    int32  `json:"port,omitempty"`
+	TLS     bool   `json:"tls,omitempty"`
 }
 
 func init() {

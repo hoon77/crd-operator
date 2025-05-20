@@ -23,6 +23,7 @@ import (
 	"github.com/hoon77/crd-operator/internal/pkg/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,6 +48,7 @@ type WebAppReconciler struct {
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -88,6 +90,12 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		_ = r.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 			Namespace: webapp.Namespace,
 			Name:      webapp.Name + resources.ConfigMapSuffix,
+		}})
+
+		// delete ingress
+		_ = r.Delete(ctx, &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{
+			Namespace: webapp.Namespace,
+			Name:      webapp.Name + resources.IngressTLSSecretNameMaSuffix,
 		}})
 
 		// remove finalizer
@@ -170,6 +178,25 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	if webapp.Spec.Ingress != nil && webapp.Spec.Ingress.Enabled {
+		createIngress := resources.BuildIngress(&webapp)
+		if err := utils.SetOwnerRefence(&webapp, createIngress, r.Scheme); err != nil {
+			return ctrl.Result{}, err
+		}
+		var foundIngress networkingv1.Ingress
+		if err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, &foundIngress); err != nil {
+			if errors.IsNotFound(err) {
+				err = r.Create(ctx, createIngress)
+			}
+		} else if err == nil {
+			createIngress.ResourceVersion = foundIngress.ResourceVersion
+			if err = r.Update(ctx, createIngress); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+	}
+
 	// Get deployment status availableReplicas
 	availableReplicas := foundDeploy.Status.AvailableReplicas
 	if webapp.Status.AvailableReplicas != availableReplicas {
@@ -188,6 +215,8 @@ func (r *WebAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&webappv1.WebApp{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&networkingv1.Ingress{}).
 		Named("webapp").
 		Complete(r)
 }
