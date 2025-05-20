@@ -47,6 +47,22 @@ spec:
                 description: Foo is an example field of WebApp. Edit webapp_types.go
                   to remove/update
                 type: string
+              ingress:
+                properties:
+                  enabled:
+                    type: boolean
+                  host:
+                    type: string
+                  path:
+                    type: string
+                  port:
+                    format: int32
+                    type: integer
+                  tls:
+                    type: boolean
+                required:
+                - enabled
+                type: object
               replicas:
                 format: int32
                 type: integer

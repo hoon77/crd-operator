@@ -6,4 +6,9 @@ spec:
   image: nginx:latest
   replicas: 2
   configData:
-    test: "todayistuesdayhehe"
+    test: "todayistutututu"
+  ingress:
+    enabled: true
+    host: "host"
+    path: "/main"
+    tls: false 
