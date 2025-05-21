@@ -178,6 +178,7 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// Create ingress
 	if webapp.Spec.Ingress != nil && webapp.Spec.Ingress.Enabled {
 		createIngress := resources.BuildIngress(&webapp)
 		if err := utils.SetOwnerRefence(&webapp, createIngress, r.Scheme); err != nil {
@@ -186,15 +187,21 @@ func (r *WebAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		var foundIngress networkingv1.Ingress
 		if err := r.Get(ctx, types.NamespacedName{Namespace: webapp.Namespace, Name: webapp.Name}, &foundIngress); err != nil {
 			if errors.IsNotFound(err) {
-				err = r.Create(ctx, createIngress)
+				if err := r.Create(ctx, createIngress); err != nil {
+					log.Error(err, "failed to create Ingress")
+					return ctrl.Result{}, err
+				}
+			} else {
+				log.Error(err, "failed to get Ingress")
+				return ctrl.Result{}, err
 			}
-		} else if err == nil {
+		} else {
 			createIngress.ResourceVersion = foundIngress.ResourceVersion
-			if err = r.Update(ctx, createIngress); err != nil {
+			if err := r.Update(ctx, createIngress); err != nil {
+				log.Error(err, "failed to update Ingress")
 				return ctrl.Result{}, err
 			}
 		}
-
 	}
 
 	// Get deployment status availableReplicas

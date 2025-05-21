@@ -9,6 +9,7 @@ import (
 
 const (
 	IngressTLSSecretNameMaSuffix = "-tls"
+	IngressDefaultClassName      = "nginx"
 )
 
 func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
@@ -21,6 +22,16 @@ func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
 		path = webapp.Spec.Ingress.Path
 	}
 
+	port := webapp.Spec.Ingress.Port
+	if port == 0 {
+		port = 80
+	}
+
+	className := webapp.Spec.Ingress.ClassName
+	if className != "" {
+		className = IngressDefaultClassName
+	}
+
 	ingress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      webapp.Name,
@@ -28,6 +39,7 @@ func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
 			Labels:    utils.GetCommonLabels(webapp),
 		},
 		Spec: networkingv1.IngressSpec{
+			IngressClassName: &className,
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: webapp.Spec.Ingress.Host,
