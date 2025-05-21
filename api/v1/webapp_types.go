@@ -62,12 +62,13 @@ type WebAppList struct {
 }
 
 type IngressSpec struct {
-	Enabled   bool   `json:"enabled"`
-	ClassName string `json:"className,omitempty"`
-	Host      string `json:"host,omitempty"`
-	Path      string `json:"path,omitempty"`
-	Port      int32  `json:"port,omitempty"`
-	TLS       bool   `json:"tls,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	ClassName     string `json:"className,omitempty"`
+	Host          string `json:"host,omitempty"`
+	Path          string `json:"path,omitempty"`
+	Port          int32  `json:"port,omitempty"`
+	RewriteTarget string `json:"rewriteTarget,omitempty"`
+	TLS           bool   `json:"tls,omitempty"`
 }
 
 func init() {

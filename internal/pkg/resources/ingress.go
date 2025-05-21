@@ -9,7 +9,8 @@ import (
 
 const (
 	IngressTLSSecretNameMaSuffix = "-tls"
-	IngressDefaultClassName      = "nginx"
+	NginxClassName               = "nginx"
+	NginxRewriteTargetAnoKey     = "nginx.ingress.kubernetes.io/rewrite-target"
 )
 
 func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
@@ -29,14 +30,15 @@ func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
 
 	className := webapp.Spec.Ingress.ClassName
 	if className != "" {
-		className = IngressDefaultClassName
+		className = NginxClassName
 	}
 
 	ingress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      webapp.Name,
-			Namespace: webapp.Namespace,
-			Labels:    utils.GetCommonLabels(webapp),
+			Name:        webapp.Name,
+			Namespace:   webapp.Namespace,
+			Labels:      utils.GetCommonLabels(webapp),
+			Annotations: GetRewriteTargetAnnotations(className, webapp.Spec.Ingress.RewriteTarget),
 		},
 		Spec: networkingv1.IngressSpec{
 			IngressClassName: &className,
@@ -76,4 +78,19 @@ func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
 	}
 
 	return ingress
+}
+
+func GetRewriteTargetAnnotations(className string, rewriteTarget string) map[string]string {
+	var annotations map[string]string
+	if rewriteTarget != "" {
+		rewriteTarget = "/"
+	}
+	switch className {
+	case NginxClassName:
+		annotations = map[string]string{
+			NginxRewriteTargetAnoKey: rewriteTarget,
+		}
+	}
+
+	return annotations
 }
