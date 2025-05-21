@@ -82,7 +82,7 @@ func BuildIngress(webapp *webappv1.WebApp) *networkingv1.Ingress {
 
 func GetRewriteTargetAnnotations(className string, rewriteTarget string) map[string]string {
 	var annotations map[string]string
-	if rewriteTarget != "" {
+	if rewriteTarget == "" {
 		rewriteTarget = "/"
 	}
 	switch className {
