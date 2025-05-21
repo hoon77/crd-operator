@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: harbor.133.186.218.188.nip.io/operator/crd
-  newTag: "7"
+  newTag: "8"

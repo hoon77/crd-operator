@@ -9,6 +9,8 @@ spec:
     test: "todayistutututu"
   ingress:
     enabled: true
-    host: "host"
+    className: nginx
+    host: nginx..nip.io
+    port: 80
     path: "/main"
     tls: false 
